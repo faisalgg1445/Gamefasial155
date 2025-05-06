@@ -70,12 +70,27 @@
       border: none;
       border-radius: 5px;
     }
+    #gameOverMessage {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      background: #222;
+      padding: 20px;
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    #leaderboard {
+      margin-top: 20px;
+      background: #222;
+      padding: 10px;
+      border-radius: 10px;
+      max-width: 300px;
+    }
   </style>
 </head>
 <body>
   <h2>Tetris Buatan Faisal</h2>
   <div id="menu">
-    <input type="text" id="playerName" placeholder="Nama Anda" style="padding:8px; border-radius:5px; border:none; width:200px;">
     <button onclick="startGame()">Mulai Game</button>
     <button onclick="showHowToPlay()">Cara Bermain</button>
     <label for="difficulty">Tingkat Kesulitan:</label>
@@ -85,7 +100,7 @@
       <option value="250">Sulit</option>
     </select>
     <div>Skor Tertinggi: <span id="highscore">0</span></div>
-    <div id="leaderboard" style="margin-top:20px; text-align:center;"></div>
+    <div id="leaderboard"><strong>Leaderboard Global</strong><ul id="leaderboardList"></ul></div>
   </div>
 
   <div id="howToPlay">
@@ -102,6 +117,14 @@
     <button onclick="closeHowToPlay()">Tutup</button>
   </div>
 
+  <div id="gameOverMessage">
+    <h3>Game Over</h3>
+    <p>Skor Anda: <span id="finalScore"></span></p>
+    <input type="text" id="playerName" placeholder="Masukkan Nama" />
+    <button onclick="submitScore()">Simpan Skor</button>
+    <button onclick="backToMenu()">Kembali ke Menu</button>
+  </div>
+
   <button id="pauseBtn" onclick="togglePause()">Pause</button>
   <canvas id="tetris" width="240" height="400"></canvas>
   <div class="score">Skor: <span id="score">0</span></div>
@@ -116,45 +139,54 @@
     <button onclick="backToMenu()">Kembali ke Menu</button>
   </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  <div id="disqus_thread" style="margin-top: 40px; width: 100%; max-width: 600px;"></div>
 
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script>
+    // TODO: Ganti konfigurasi ini dengan milikmu
     const firebaseConfig = {
-      apiKey: "AIzaSyA953ksEMEiGUHajmrmYuu6G85D7o3N6uQ",
-      authDomain: "liderboardtetris.firebaseapp.com",
-      projectId: "liderboardtetris",
-      storageBucket: "liderboardtetris.appspot.com",
-      messagingSenderId: "1022424113358",
-      appId: "1:1022424113358:web:d5111b9edd3d78d66c709f",
-      measurementId: "G-9V9XYXLWLN"
+      apiKey: "API_KEY",
+      authDomain: "PROJECT_ID.firebaseapp.com",
+      projectId: "PROJECT_ID",
+      storageBucket: "PROJECT_ID.appspot.com",
+      messagingSenderId: "SENDER_ID",
+      appId: "APP_ID"
     };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    async function saveScoreToFirebase(name, score) {
-      if (!name) return;
-      try {
-        await addDoc(collection(db, "scores"), { name, score, timestamp: Date.now() });
+    function submitScore() {
+      const name = document.getElementById("playerName").value.trim();
+      if (!name) return alert("Masukkan nama terlebih dahulu.");
+      db.collection("leaderboard").add({
+        name: name,
+        score: score,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(() => {
+        document.getElementById("gameOverMessage").style.display = "none";
+        backToMenu();
         loadLeaderboard();
-      } catch (e) {
-        console.error("Gagal simpan skor:", e);
-      }
-    }
-
-    async function loadLeaderboard() {
-      const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(5));
-      const querySnapshot = await getDocs(q);
-      const leaderboard = document.getElementById("leaderboard");
-      leaderboard.innerHTML = "<h3>Leaderboard</h3><ol>";
-      querySnapshot.forEach(doc => {
-        const data = doc.data();
-        leaderboard.innerHTML += `<li>${data.name}: ${data.score}</li>`;
       });
-      leaderboard.innerHTML += "</ol>";
     }
 
+    function loadLeaderboard() {
+      const list = document.getElementById("leaderboardList");
+      list.innerHTML = '';
+      db.collection("leaderboard").orderBy("score", "desc").limit(10).get()
+        .then(snapshot => {
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            const li = document.createElement("li");
+            li.textContent = `${data.name}: ${data.score}`;
+            list.appendChild(li);
+          });
+        });
+    }
+  </script>
+
+  <script>
     const canvas = document.getElementById('tetris');
     const context = canvas.getContext('2d');
     context.scale(20, 20);
@@ -166,8 +198,16 @@
     const highscoreElement = document.getElementById('highscore');
     highscoreElement.innerText = highscore;
 
-    const colors = [null,'#FF0D72','#0DC2FF','#0DFF72','#F538FF','#FF8E0D','#FFE138','#3877FF'];
-    const player = { pos: {x: 0, y: 0}, matrix: null };
+    const colors = [
+      null, '#FF0D72', '#0DC2FF', '#0DFF72',
+      '#F538FF', '#FF8E0D', '#FFE138', '#3877FF',
+    ];
+
+    const player = {
+      pos: {x: 0, y: 0},
+      matrix: null,
+    };
+
     let dropInterval = 1000;
     let dropCounter = 0;
     let lastTime = 0;
@@ -247,18 +287,16 @@
       if (collide(arena, player)) {
         player.pos.y--;
         merge(arena, player);
-        playerReset();
         arenaSweep();
         updateScore();
+        playerReset();
       }
       dropCounter = 0;
     }
 
     function playerMove(dir) {
       player.pos.x += dir;
-      if (collide(arena, player)) {
-        player.pos.x -= dir;
-      }
+      if (collide(arena, player)) player.pos.x -= dir;
     }
 
     function playerRotate() {
@@ -281,11 +319,10 @@
       player.pos.y = 0;
       player.pos.x = Math.floor(arena[0].length / 2) - Math.floor(player.matrix[0].length / 2);
       if (collide(arena, player)) {
-        const name = document.getElementById('playerName').value.trim();
-        saveScoreToFirebase(name, score);
         arena.forEach(row => row.fill(0));
-        score = 0;
-        updateScore();
+        document.getElementById("finalScore").innerText = score;
+        document.getElementById("gameOverMessage").style.display = "flex";
+        cancelAnimationFrame(animationFrame);
       }
     }
 
@@ -325,9 +362,12 @@
     function startGame() {
       document.getElementById('menu').style.display = 'none';
       document.getElementById('howToPlay').style.display = 'none';
+      document.getElementById("gameOverMessage").style.display = "none";
       dropInterval = parseInt(document.getElementById('difficulty').value);
       canvas.style.display = 'block';
       document.getElementById('pauseBtn').style.display = 'inline-block';
+      score = 0;
+      updateScore();
       playerReset();
       update();
     }
@@ -338,6 +378,7 @@
       document.getElementById('pauseMenu').style.display = 'none';
       canvas.style.display = 'none';
       document.getElementById('pauseBtn').style.display = 'none';
+      loadLeaderboard();
     }
 
     function showHowToPlay() {
@@ -358,7 +399,22 @@
     document.getElementById('menu').style.display = 'flex';
     canvas.style.display = 'none';
     document.getElementById('pauseBtn').style.display = 'none';
+
     loadLeaderboard();
+  </script>
+
+  <!-- Disqus -->
+  <script>
+    var disqus_config = function () {
+      this.page.url = window.location.href;
+      this.page.identifier = 'tetris-page';
+    };
+    (function() {
+      var d = document, s = d.createElement('script');
+      s.src = 'https://tetrisfaisal.disqus.com/embed.js';
+      s.setAttribute('data-timestamp', +new Date());
+      (d.head || d.body).appendChild(s);
+    })();
   </script>
 </body>
 </html>
