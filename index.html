@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Tetris Buatan Faisal</title>
+  <script type="module" src="Leaderboard.js"></script>
   <style>
     body {
       margin: 0;
@@ -90,6 +91,7 @@
 </head>
 <body>
   <h2>Tetris Buatan Faisal</h2>
+  <div id="leaderboard" style="margin-top: 20px;"></div>
   <div id="menu">
     <button onclick="startGame()">Mulai Game</button>
     <button onclick="showHowToPlay()">Cara Bermain</button>
@@ -401,6 +403,26 @@
     document.getElementById('pauseBtn').style.display = 'none';
 
     loadLeaderboard();
+  </script>
+  <script type="module">
+  import { loadLeaderboard, saveScore } from './Leaderboard.js';
+
+  // Tampilkan leaderboard saat halaman dimuat
+  loadLeaderboard("leaderboard");
+
+  // Contoh: simpan skor setelah game over
+  function onGameOver(finalScore) {
+    const playerName = prompt("Game Over! Masukkan nama kamu:");
+    if (playerName) {
+      saveScore(playerName, finalScore).then(() => {
+        loadLeaderboard("leaderboard"); // refresh leaderboard
+      });
+    }
+  }
+
+  // Contoh pemanggilan setelah game selesai
+  // Ganti ini sesuai struktur gamemu
+  // Misalnya: tetris.onGameOver = (score) => onGameOver(score);
   </script>
 
   <!-- Disqus -->
